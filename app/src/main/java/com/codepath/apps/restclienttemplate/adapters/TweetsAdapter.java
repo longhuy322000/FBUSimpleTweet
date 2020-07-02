@@ -1,11 +1,14 @@
 package com.codepath.apps.restclienttemplate.adapters;
 
+import android.app.Activity;
 import android.content.Context;
-import android.text.format.DateUtils;
+import android.content.Intent;
+import android.graphics.Color;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -13,14 +16,15 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.bumptech.glide.request.target.Target;
 import com.codepath.apps.restclienttemplate.R;
+import com.codepath.apps.restclienttemplate.activities.TweetDetailsActivity;
+import com.codepath.apps.restclienttemplate.activities.TweetReplyActivity;
 import com.codepath.apps.restclienttemplate.models.Tweet;
 
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.List;
-import java.util.Locale;
 
 public class TweetsAdapter extends RecyclerView.Adapter<TweetsAdapter.ViewHolder> {
 
@@ -71,7 +75,10 @@ public class TweetsAdapter extends RecyclerView.Adapter<TweetsAdapter.ViewHolder
     }
 
     // Define a viewholder
-    public class ViewHolder extends RecyclerView.ViewHolder {
+    public class ViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
+
+        private static final int DETAILS_REQUEST_CODE = 30;
+        private static final int REPLY_REQUEST_CODE = 40;
 
         ImageView ivProfileImage;
         TextView tvBody;
@@ -81,6 +88,9 @@ public class TweetsAdapter extends RecyclerView.Adapter<TweetsAdapter.ViewHolder
         ImageView ivTweetImage;
         TextView tvRetweetCount;
         TextView rvFavCount;
+        Button btnReply;
+        Button btnRetweet;
+        Button btnFav;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -92,45 +102,75 @@ public class TweetsAdapter extends RecyclerView.Adapter<TweetsAdapter.ViewHolder
             ivTweetImage = itemView.findViewById(R.id.ivTweetImage);
             tvRetweetCount = itemView.findViewById(R.id.tvRetweetCount);
             rvFavCount = itemView.findViewById(R.id.tvFavCount);
+            btnReply = itemView.findViewById(R.id.btnReply);
+            btnRetweet = itemView.findViewById(R.id.btnRetweet);
+            btnFav = itemView.findViewById(R.id.btnFav);
+            itemView.setOnClickListener(this);
+
+            btnReply.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    Intent intent = new Intent(context, TweetReplyActivity.class);
+                    intent.putExtra("reply_to_id", tweets.get(getAdapterPosition()).userId);
+                    ((Activity) context).startActivityForResult(intent, REPLY_REQUEST_CODE);
+                }
+            });
         }
 
         public void bind(Tweet tweet) throws ParseException {
             tvName.setText(tweet.user.name);
             tvBody.setText(tweet.body);
             tvScreenName.setText("@" + tweet.user.screenName);
-            tvTimeElapsed.setText(getRelativeTimeAgo(tweet.createdAt));
+            tvTimeElapsed.setText(Tweet.getRelativeTimeAgo(tweet.createdAt));
             tvRetweetCount.setText(String.valueOf(tweet.retweetCount));
             rvFavCount.setText(String.valueOf(tweet.favCount));
+            if (tweet.favorited != null && tweet.favorited) {
+                setFavorited();
+            }
+            else if (tweet.favorited != null && tweet.favorited == false) {
+                setUnFavorited();
+            }
+            if (tweet.retweeted != null && tweet.retweeted == true) {
+                setRetweeted();
+            }
+            else if (tweet.retweeted != null && tweet.retweeted == false) {
+                setUnRetweeted();
+            }
 
             Glide.with(context)
                     .load(tweet.user.publicImageUrl)
                     .override(Target.SIZE_ORIGINAL)
                     .into(ivProfileImage);
 
-            if (tweet.tweetImageUrl != null)
-                Log.i(TAG, tweet.tweetImageUrl);
-
             Glide.with(context)
                     .load(tweet.tweetImageUrl)
-                    .override(Target.SIZE_ORIGINAL)
                     .into(ivTweetImage);
         }
 
-        public String getRelativeTimeAgo(String rawJsonDate) {
-            String twitterFormat = "EEE MMM dd HH:mm:ss ZZZZZ yyyy";
-            SimpleDateFormat sf = new SimpleDateFormat(twitterFormat, Locale.ENGLISH);
-            sf.setLenient(true);
+        @Override
+        public void onClick(View view) {
+            Intent intent = new Intent(context, TweetDetailsActivity.class);
+            intent.putExtra("tweetId", tweets.get(getAdapterPosition()).id);
+            intent.putExtra("position", getAdapterPosition());
+            ((Activity) context).startActivityForResult(intent, DETAILS_REQUEST_CODE);
+        }
 
-            String relativeDate = "";
-            try {
-                long dateMillis = sf.parse(rawJsonDate).getTime();
-                relativeDate = DateUtils.getRelativeTimeSpanString(dateMillis,
-                        System.currentTimeMillis(), DateUtils.SECOND_IN_MILLIS).toString();
-            } catch (ParseException e) {
-                e.printStackTrace();
-            }
+        public void setFavorited() {
+            btnFav.setBackgroundResource(R.drawable.ic_vector_heart);
+            btnFav.getBackground().setTint(Color.parseColor("#F44336"));
+        }
 
-            return relativeDate;
+        public void setUnFavorited() {
+            btnRetweet.setBackgroundResource(R.drawable.ic_vector_heart_stroke);
+        }
+
+        public void setRetweeted() {
+            btnRetweet.setBackgroundResource(R.drawable.ic_vector_retweet);
+            btnRetweet.getBackground().setTint(Color.parseColor("#6a9d51"));
+        }
+
+        public void setUnRetweeted() {
+            btnRetweet.setBackgroundResource(R.drawable.ic_vector_retweet_stroke);
         }
     }
 }

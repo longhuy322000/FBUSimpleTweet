@@ -21,6 +21,7 @@ import com.codepath.apps.restclienttemplate.R;
 import com.codepath.apps.restclienttemplate.adapters.TweetsAdapter;
 import com.codepath.apps.restclienttemplate.TwitterApp;
 import com.codepath.apps.restclienttemplate.TwitterClient;
+import com.codepath.apps.restclienttemplate.databinding.ActivityTimelineBinding;
 import com.codepath.apps.restclienttemplate.models.Tweet;
 import com.codepath.apps.restclienttemplate.models.TweetDao;
 import com.codepath.apps.restclienttemplate.models.TweetWithUser;
@@ -41,7 +42,9 @@ import static android.provider.CalendarContract.CalendarCache.URI;
 public class TimelineActivity extends AppCompatActivity {
 
     public static final String TAG = "TimelineActivity";
-    private final int REQUEST_CODE = 20;
+    private static final int COMPOSE_REQUEST_CODE = 20;
+    private static final int DETAILS_REQUEST_CODE = 30;
+    private static final int REPLY_REQUEST_CODE = 40;
 
     TweetDao tweetDao;
     TwitterClient client;
@@ -55,19 +58,21 @@ public class TimelineActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_timeline);
+        // Use ViewBinding
+        ActivityTimelineBinding binding = ActivityTimelineBinding.inflate(getLayoutInflater());
+        View view = binding.getRoot();
+        setContentView(view);
 
-        Toolbar toolbar = findViewById(R.id.toolbar);
+        progressBar = binding.progressBar;
+
+        Toolbar toolbar = binding.toolbar;
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayShowTitleEnabled(false); // remove title in toolbar
 
         client = TwitterApp.getRestClient(this);
         tweetDao = ((TwitterApp) getApplicationContext()).getMyDatabase().tweetDao();
 
-        progressBar = findViewById(R.id.progressBar);
-        showProgressBar();
-
-        swipeContainer = findViewById(R.id.swipeContainer);
+        swipeContainer = binding.swipeContainer;
         swipeContainer.setColorSchemeResources(android.R.color.holo_blue_bright,
                 android.R.color.holo_green_light,
                 android.R.color.holo_orange_light,
@@ -81,7 +86,7 @@ public class TimelineActivity extends AppCompatActivity {
         });
 
         // Find the recycler view
-        rvTweets = findViewById(R.id.rvTweets);
+        rvTweets = binding.rvTweets;
         // Init the list of tweets and adapter
         tweets = new ArrayList<>();
         tweetsAdapter = new TweetsAdapter(this, tweets);
@@ -100,18 +105,7 @@ public class TimelineActivity extends AppCompatActivity {
         // Adds the scroll listener to recyclerview
         rvTweets.addOnScrollListener(scrollListener);
 
-        // Query for existing tweets in the db
-        AsyncTask.execute(new Runnable() {
-            @Override
-            public void run() {
-                Log.i(TAG, "Showing data from database");
-                List<TweetWithUser> tweetWithUsers = tweetDao.recentItems();
-                List<Tweet> tweetsFromDB = TweetWithUser.getTweetList(tweetWithUsers);
-                tweetsAdapter.clear();
-                tweetsAdapter.addAll(tweetsFromDB);
-                hideProgressBar();
-            }
-        });
+        loadDataFromDB();
         populateHomeTimeline();
     }
 
@@ -126,7 +120,7 @@ public class TimelineActivity extends AppCompatActivity {
         if (item.getItemId() == R.id.compose) {
             // Navigate to the compose activity
             Intent intent = new Intent(this, ComposeActivity.class);
-            startActivityForResult(intent, REQUEST_CODE);
+            startActivityForResult(intent, COMPOSE_REQUEST_CODE);
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -134,13 +128,28 @@ public class TimelineActivity extends AppCompatActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        if (requestCode == REQUEST_CODE && resultCode == RESULT_OK) {
+        if (requestCode == COMPOSE_REQUEST_CODE && resultCode == RESULT_OK) {
             // Get data from the intent (tweet)
             Tweet tweet = Parcels.unwrap(data.getParcelableExtra("tweet"));
             // Update the RV with the tweet object
             // Modify data source of tweets
             tweets.add(0, tweet);
             // Update the adapter
+            tweetsAdapter.notifyItemInserted(0);
+            rvTweets.smoothScrollToPosition(0);
+        }
+        else if(requestCode == DETAILS_REQUEST_CODE && resultCode == RESULT_OK) {
+            int pos = data.getIntExtra("position", 0);
+            tweets.get(pos).favorited = data.getBooleanExtra("favorited", false);
+            tweets.get(pos).retweeted = data.getBooleanExtra("retweeted", false);
+            Log.i("testingonly", "1 " + tweets.get(pos).favorited + " " + tweets.get(pos).retweeted);
+            tweets.get(pos).retweetCount = data.getIntExtra("retweetCount", 0);
+            tweets.get(pos).favCount = data.getIntExtra("favCount", 0);
+            tweetsAdapter.notifyItemChanged(data.getIntExtra("position", 0));
+        }
+        else if(requestCode == REPLY_REQUEST_CODE && resultCode == RESULT_OK) {
+            Tweet tweet = Parcels.unwrap(data.getParcelableExtra("tweet"));
+            tweets.add(0, tweet);
             tweetsAdapter.notifyItemInserted(0);
             rvTweets.smoothScrollToPosition(0);
         }
@@ -170,7 +179,21 @@ public class TimelineActivity extends AppCompatActivity {
         }, tweets.get(tweets.size() -1).id);
     }
 
+    private void loadDataFromDB() {
+        AsyncTask.execute(new Runnable() {
+            @Override
+            public void run() {
+            Log.i(TAG, "Showing data from database");
+            List<TweetWithUser> tweetWithUsers = tweetDao.recentItems();
+            List<Tweet> tweetsFromDB = TweetWithUser.getTweetList(tweetWithUsers);
+            tweetsAdapter.clear();
+            tweetsAdapter.addAll(tweetsFromDB);
+            }
+        });
+    }
+
     private void populateHomeTimeline() {
+        showProgressBar();
         client.getHomeTimeline(new JsonHttpResponseHandler() {
             @Override
             public void onSuccess(int statusCode, Headers headers, JSON json) {
@@ -178,6 +201,7 @@ public class TimelineActivity extends AppCompatActivity {
                 JSONArray jsonArray = json.jsonArray;
                 try {
                     final List<Tweet> tweetFromNetwork = Tweet.fromJsonArray(jsonArray);
+                    hideProgressBar();
                     tweetsAdapter.clear();
                     tweetsAdapter.addAll(tweetFromNetwork);
                     // Now we call setRefreshing(false) to signal refresh has finished
@@ -191,7 +215,6 @@ public class TimelineActivity extends AppCompatActivity {
                             tweetDao.insertModel(usersFromNetwork.toArray(new User[0]));
                             // insert tweets next
                             tweetDao.insertModel(tweetFromNetwork.toArray(new Tweet[0]));
-                            hideProgressBar();
                         }
                     });
                 } catch (JSONException e) {
@@ -201,6 +224,7 @@ public class TimelineActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(int statusCode, Headers headers, String response, Throwable throwable) {
+                hideProgressBar();
                 Log.i(TAG, "onFailure! " + response, throwable);
             }
         });

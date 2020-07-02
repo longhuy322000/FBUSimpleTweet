@@ -5,15 +5,12 @@ import androidx.appcompat.widget.Toolbar;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
@@ -22,7 +19,7 @@ import com.codepath.apps.restclienttemplate.R;
 import com.codepath.apps.restclienttemplate.TwitterApp;
 import com.codepath.apps.restclienttemplate.TwitterClient;
 import com.codepath.apps.restclienttemplate.databinding.ActivityComposeBinding;
-import com.codepath.apps.restclienttemplate.databinding.ActivityTimelineBinding;
+import com.codepath.apps.restclienttemplate.databinding.ActivityTweetReplyBinding;
 import com.codepath.apps.restclienttemplate.models.Tweet;
 import com.codepath.apps.restclienttemplate.models.User;
 import com.codepath.asynchttpclient.callback.JsonHttpResponseHandler;
@@ -33,10 +30,9 @@ import org.parceler.Parcels;
 
 import okhttp3.Headers;
 
-public class ComposeActivity extends AppCompatActivity {
+public class TweetReplyActivity extends AppCompatActivity {
 
-    public static final int MAX_TWEET_LENGTH = 140;
-    public static final String TAG = "ComposeActivity";
+    public static final String TAG = "TweetReplyActivity";
 
     EditText etCompose;
     Button btnTweet;
@@ -45,14 +41,15 @@ public class ComposeActivity extends AppCompatActivity {
     TextView tvScreenName;
     TextView tvName;
     ImageView ivUserImage;
+    TextView tvReplyTo;
+    long replyToId;
 
     TwitterClient client;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Use ViewBinding
-        ActivityComposeBinding binding = ActivityComposeBinding.inflate(getLayoutInflater());
+        ActivityTweetReplyBinding binding = ActivityTweetReplyBinding.inflate(getLayoutInflater());
         View view = binding.getRoot();
         setContentView(view);
 
@@ -69,59 +66,32 @@ public class ComposeActivity extends AppCompatActivity {
         tvScreenName = binding.tvScreenName;
         tvName = binding.tvName;
         ivUserImage = binding.ivUserImage;
+        tvReplyTo = binding.tvReplyTo;
 
-        getUser();
+        replyToId = getIntent().getLongExtra("reply_to_id", 0);
 
-        etCompose.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable editable) {
-                tvComposeSize.setText(String.valueOf(140 - editable.length()));
-            }
-        });
+        getCurrentUser();
+        getReplyToUser(replyToId);
 
         btnCLose.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Intent intent = new Intent();
-                setResult(RESULT_CANCELED, intent);
-                // Close the activity, pass data to parent
-                finish();
+                Intent intent = new Intent(TweetReplyActivity.this, TimelineActivity.class);
+                startActivity(intent);
             }
         });
 
-        // set click listener on button
         btnTweet.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                final String tweetContent = etCompose.getText().toString();
-                if (tweetContent.isEmpty()) {
-                    Toast.makeText(ComposeActivity.this, "Sorry, your tweet cannot be empty", Toast.LENGTH_LONG).show();
-                    return;
-                }
-                if (tweetContent.length() > MAX_TWEET_LENGTH) {
-                    Toast.makeText(ComposeActivity.this, "Sorry your tweet is too long", Toast.LENGTH_LONG).show();
-                }
-                Toast.makeText(ComposeActivity.this, tweetContent, Toast.LENGTH_LONG).show();
-                // make an API call to Twitter to publish the tweet
-                client.publishTweet(tweetContent, new JsonHttpResponseHandler() {
+                client.postReply(replyToId, etCompose.getText().toString(), new JsonHttpResponseHandler() {
                     @Override
                     public void onSuccess(int statusCode, Headers headers, JSON json) {
-                        Log.i(TAG, "onFailure to publish tweet");
                         try {
                             Tweet tweet = Tweet.fromJson(json.jsonObject);
-                            Log.i(TAG, "Published tweet says " + tweet);
                             Intent intent = new Intent();
                             intent.putExtra("tweet", Parcels.wrap(tweet));
                             setResult(RESULT_OK, intent);
-                            // Close the activity, pass data to parent
                             finish();
                         } catch (JSONException e) {
                             e.printStackTrace();
@@ -130,29 +100,23 @@ public class ComposeActivity extends AppCompatActivity {
 
                     @Override
                     public void onFailure(int statusCode, Headers headers, String response, Throwable throwable) {
-                        Log.e(TAG, "onFailure to publish tweet", throwable);
+                        Log.e(TAG, "onFailure reply + " + response, throwable);
                     }
                 });
             }
         });
     }
 
-    private void getUser() {
-        client.getCurrentUser(new JsonHttpResponseHandler() {
+    private void getReplyToUser(long id) {
+        client.getUser(id, new JsonHttpResponseHandler() {
             @Override
             public void onSuccess(int statusCode, Headers headers, JSON json) {
                 Log.i(TAG, "onSuccess getUser " + json.toString());
                 JSONObject jsonObject = json.jsonObject;
                 try {
                     User user = User.fromJson(jsonObject);
-                    tvScreenName.setText("@" + user.screenName);
-                    tvName.setText(user.name);
-
-                    Glide.with(ComposeActivity.this)
-                            .load(user.publicImageUrl)
-                            .transform(new RoundedCorners(30))
-                            .override(Target.SIZE_ORIGINAL)
-                            .into(ivUserImage);
+                    etCompose.setText("@" + user.screenName);
+                    tvReplyTo.setText("In reply to " + user.screenName);
                 } catch (JSONException e) {
                     Log.e(TAG, "getUser hit json exception", e);
                 }
@@ -160,7 +124,35 @@ public class ComposeActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(int statusCode, Headers headers, String response, Throwable throwable) {
-                Log.e(TAG, "onFailture getUser " + response, throwable);
+                Log.e(TAG, "onFailure getUser " + response, throwable);
+            }
+        });
+    }
+
+    private void getCurrentUser() {
+        client.getCurrentUser(new JsonHttpResponseHandler() {
+            @Override
+            public void onSuccess(int statusCode, Headers headers, JSON json) {
+                Log.i(TAG, "onSuccess getCurrentUser " + json.toString());
+                JSONObject jsonObject = json.jsonObject;
+                try {
+                    User user = User.fromJson(jsonObject);
+                    tvScreenName.setText("@" + user.screenName);
+                    tvName.setText(user.name);
+
+                    Glide.with(TweetReplyActivity.this)
+                            .load(user.publicImageUrl)
+                            .transform(new RoundedCorners(30))
+                            .override(Target.SIZE_ORIGINAL)
+                            .into(ivUserImage);
+                } catch (JSONException e) {
+                    Log.e(TAG, "getCurrentUser hit json exception", e);
+                }
+            }
+
+            @Override
+            public void onFailure(int statusCode, Headers headers, String response, Throwable throwable) {
+                Log.e(TAG, "onFailure getCurrentUser " + response, throwable);
             }
         });
     }

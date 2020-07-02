@@ -77,7 +77,7 @@
         android:id="@+id/etCompose"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/rlUserInfo"
+        android:layout_below="@id/ivReplyTo"
         android:layout_alignParentStart="true"
         android:layout_marginStart="5dp"
         android:ems="10"
@@ -86,6 +86,24 @@
         android:inputType="textMultiLine"
         android:maxLength="140"
         android:minLines="5" />
+
+    <ImageView
+        android:id="@+id/ivReplyTo"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_below="@id/rlUserInfo"
+        android:layout_marginLeft="8dp"
+        app:srcCompat="@drawable/reply_to_icon" />
+
+    <TextView
+        android:id="@+id/tvReplyTo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/rlUserInfo"
+        android:layout_marginLeft="2dp"
+        android:layout_marginTop="3dp"
+        android:layout_toRightOf="@id/ivReplyTo"
+        tools:text="Reply to Username" />
 
     <Button
         android:id="@+id/btnTweet"
