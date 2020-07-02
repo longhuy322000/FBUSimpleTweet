@@ -74,19 +74,19 @@ public class ComposeActivity extends AppCompatActivity {
 
         etCompose.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            }
+            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) { }
 
             @Override
-            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            }
+            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) { }
 
             @Override
             public void afterTextChanged(Editable editable) {
+                // display remaining chars
                 tvComposeSize.setText(String.valueOf(140 - editable.length()));
             }
         });
 
+        // Cancel
         btnCLose.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {

@@ -73,11 +73,13 @@ public class TweetReplyActivity extends AppCompatActivity {
         getCurrentUser();
         getReplyToUser(replyToId);
 
+        // cancel + close activity
         btnCLose.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Intent intent = new Intent(TweetReplyActivity.this, TimelineActivity.class);
-                startActivity(intent);
+                Intent intent = new Intent();
+                setResult(RESULT_CANCELED, intent);
+                finish();
             }
         });
 
@@ -88,6 +90,7 @@ public class TweetReplyActivity extends AppCompatActivity {
                     @Override
                     public void onSuccess(int statusCode, Headers headers, JSON json) {
                         try {
+                            // return replied tweet and go back to timlineActivity
                             Tweet tweet = Tweet.fromJson(json.jsonObject);
                             Intent intent = new Intent();
                             intent.putExtra("tweet", Parcels.wrap(tweet));

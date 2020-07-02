@@ -21,6 +21,7 @@ import com.bumptech.glide.request.target.Target;
 import com.codepath.apps.restclienttemplate.R;
 import com.codepath.apps.restclienttemplate.activities.TweetDetailsActivity;
 import com.codepath.apps.restclienttemplate.activities.TweetReplyActivity;
+import com.codepath.apps.restclienttemplate.databinding.ItemTweetBinding;
 import com.codepath.apps.restclienttemplate.models.Tweet;
 
 import java.text.ParseException;
